@@ -1,0 +1,4 @@
+deployment/mongo-keyfile
+*.pem
+*.key
+.env

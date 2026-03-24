@@ -1,0 +1,108 @@
+services:
+  mock-plugin:
+    image: python:3.11-alpine
+    container_name: fastgpt-mock-plugin
+    restart: always
+    command: python3 /mock_server.py
+    volumes:
+      - ./mock_server.py:/mock_server.py
+    networks:
+      - fastgpt-net
+
+  mock-openai:
+    image: python:3.11-alpine
+    container_name: fastgpt-mock-openai
+    restart: always
+    command: python3 /mock_openai.py
+    volumes:
+      - ./mock_openai.py:/mock_openai.py
+    networks:
+      - fastgpt-net
+
+  mongo:
+    image: mongo:4.4.18
+    container_name: fastgpt-mongo
+    restart: always
+    command: mongod --replSet rs0 --keyFile /data/configdb/mongo-keyfile --bind_ip_all
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: myusername
+      MONGO_INITDB_ROOT_PASSWORD: mypassword
+    volumes:
+      - mongo_data:/data/db
+      - ./mongo-keyfile:/data/configdb/mongo-keyfile
+    networks:
+      - fastgpt-net
+
+  mongo-init:
+    image: mongo:4.4.18
+    container_name: fastgpt-mongo-init
+    restart: on-failure
+    depends_on:
+      - mongo
+    networks:
+      - fastgpt-net
+    command: >
+      bash -c 'sleep 20 &&
+      mongo --host mongo -u myusername -p mypassword --authenticationDatabase admin --eval
+      "rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"mongo:27017\"}]})" ||
+      echo already initialized'
+
+  pg:
+    image: pgvector/pgvector:0.7.0-pg16
+    container_name: fastgpt-pg
+    restart: always
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - fastgpt-net
+
+  redis:
+    image: redis:7.2
+    container_name: fastgpt-redis
+    restart: always
+    networks:
+      - fastgpt-net
+
+  fastgpt:
+    image: ghcr.io/labring/fastgpt:latest
+    container_name: fastgpt-app
+    restart: always
+    depends_on:
+      - mongo
+      - pg
+      - redis
+      - mock-plugin
+      - mock-openai
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./data/config.json:/app/data/config.json:ro
+    environment:
+      DEFAULT_ROOT_PSW: fastgpt123
+      OPENAI_BASE_URL: http://mock-openai:3002/v1
+      OPENAI_API_KEY: sk-mock-key
+      DB_MAX_LINK: 5
+      TOKEN_KEY: any-random-secret-key-here
+      ROOT_KEY: root-secret-key-here
+      FILE_TOKEN_KEY: file-token-key
+      MONGODB_URI: mongodb://myusername:mypassword@mongo:27017/fastgpt?authSource=admin&replicaSet=rs0
+      PG_URL: postgresql://username:password@pg:5432/postgres
+      REDIS_URL: redis://redis:6379
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: any-nextauth-secret
+      NEXT_PUBLIC_BASE_URL: http://localhost:3000
+      PLUGIN_BASE_URL: http://mock-plugin:3001
+    networks:
+      - fastgpt-net
+
+networks:
+  fastgpt-net:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  pg_data:

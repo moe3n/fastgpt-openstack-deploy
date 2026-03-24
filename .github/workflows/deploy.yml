@@ -1,0 +1,69 @@
+name: Deploy FastGPT to OpenStack
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'deployment/**'
+
+jobs:
+  deploy:
+    name: Deploy to OpenStack Instance
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose config
+        run: |
+          cd deployment
+          docker-compose config --quiet && echo "✓ docker-compose config is valid"
+
+      - name: Copy deployment files to OpenStack instance
+        run: |
+          scp -i $HOME/.ssh/fastgpt_key -o StrictHostKeyChecking=no \
+            deployment/docker-compose.yml \
+            deployment/mock_server.py \
+            deployment/mock_openai.py \
+            ubuntu@172.24.4.84:/home/ubuntu/fastgpt/
+          scp -i $HOME/.ssh/fastgpt_key -o StrictHostKeyChecking=no \
+            deployment/data/config.json \
+            ubuntu@172.24.4.84:/home/ubuntu/fastgpt/data/
+          echo "✓ Files deployed to OpenStack instance"
+
+      - name: Deploy stack on OpenStack instance
+        run: |
+          ssh -i $HOME/.ssh/fastgpt_key -o StrictHostKeyChecking=no ubuntu@172.24.4.84 "
+            cd /home/ubuntu/fastgpt
+            docker compose up -d --remove-orphans 2>&1
+            echo '✓ docker compose up complete'
+          "
+
+      - name: Health check FastGPT
+        run: |
+          echo "Waiting for FastGPT to be ready..."
+          for i in $(seq 1 24); do
+            CODE=$(curl -sf --max-time 5 http://172.24.4.84:3000 \
+                   -o /dev/null -w "%{http_code}" 2>/dev/null)
+            if [ "$CODE" = "200" ]; then
+              echo "✓ FastGPT is healthy (HTTP 200) after ${i}0s"
+              exit 0
+            fi
+            echo "  Attempt $i/24 — got HTTP $CODE, retrying..."
+            sleep 10
+          done
+          echo "✗ Health check failed after 240s"
+          exit 1
+
+      - name: Verify API responds
+        run: |
+          RESP=$(curl -sf --max-time 10 \
+            http://172.24.4.84:3000/api/common/system/getInitData \
+            -o /dev/null -w "%{http_code}" 2>/dev/null)
+          if [ "$RESP" = "200" ]; then
+            echo "✓ FastGPT API is responding (HTTP 200)"
+          else
+            echo "✗ API check failed (HTTP $RESP)"
+            exit 1
+          fi

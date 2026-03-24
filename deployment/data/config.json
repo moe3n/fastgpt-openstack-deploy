@@ -1,0 +1,55 @@
+{
+  "feConfigs": {
+    "lafEnv": "https://laf.dev",
+    "isPlus": false
+  },
+  "systemEnv": {
+    "openapiPrefix": "fastgpt",
+    "vectorMaxProcess": 15,
+    "qaMaxProcess": 15,
+    "pgHNSWEfSearch": 100
+  },
+  "llmModels": [
+    {
+      "model": "gpt-3.5-turbo",
+      "name": "GPT35",
+      "avatar": "/imgs/model/openai.svg",
+      "maxContext": 16000,
+      "maxResponse": 4000,
+      "quoteMaxToken": 13000,
+      "maxTemperature": 1.2,
+      "charsPointsPrice": 0,
+      "censor": false,
+      "vision": false,
+      "datasetProcess": true,
+      "usedInClassify": true,
+      "usedInExtractFields": true,
+      "usedInToolCall": true,
+      "usedInQueryExtension": true,
+      "toolChoice": true,
+      "functionCall": false,
+      "customCQPrompt": "",
+      "customExtractPrompt": "",
+      "defaultSystemChatPrompt": "",
+      "defaultConfig": {}
+    }
+  ],
+  "vectorModels": [
+    {
+      "model": "text-embedding-ada-002",
+      "name": "Embedding-2",
+      "avatar": "/imgs/model/openai.svg",
+      "charsPointsPrice": 0,
+      "defaultToken": 700,
+      "maxToken": 3000,
+      "weight": 100
+    }
+  ],
+  "reRankModels": [],
+  "audioSpeechModels": [],
+  "whisperModel": {
+    "model": "whisper-1",
+    "name": "Whisper1",
+    "charsPointsPrice": 0
+  }
+}
