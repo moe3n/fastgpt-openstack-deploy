@@ -36,9 +36,39 @@ class MockOpenAIHandler(http.server.BaseHTTPRequestHandler):
         elif path == '/v1/chat/completions':
             messages = body.get('messages', [])
             user_msg = next((m['content'] for m in reversed(messages) if m.get('role') == 'user'), '')
-            # Look for injected context in system message
+            # FastGPT injects retrieved KB chunks into the system message
             sys_msg = next((m['content'] for m in messages if m.get('role') == 'system'), '')
-            reply = f"Based on the knowledge base: {user_msg[:200]} - This is a demo response from the mock LLM. The system has knowledge about OpenStack, DevStack, FastGPT, and cloud deployment."
+
+            # Extract answer passages from the system message.
+            # FastGPT formats retrieved chunks as lines starting with "A:" or
+            # as longer prose paragraphs between the prompt boilerplate.
+            context_lines = []
+            for line in sys_msg.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith('a:'):
+                    # Q&A format: grab the answer text
+                    context_lines.append(stripped[2:].strip())
+                elif stripped and not stripped.lower().startswith('q:') \
+                        and not stripped.startswith('#') \
+                        and not stripped.startswith('---') \
+                        and len(stripped) > 40:
+                    # Prose chunk: grab substantial lines
+                    context_lines.append(stripped)
+
+            if context_lines:
+                context_excerpt = ' '.join(context_lines[:3])[:600]
+                reply = (
+                    f"Based on the knowledge base, here is what I found about "
+                    f"\"{user_msg[:100]}\":\n\n"
+                    f"{context_excerpt}\n\n"
+                    f"(Response grounded in retrieved KB context.)"
+                )
+            else:
+                reply = (
+                    f"I could not find specific information about \"{user_msg[:150]}\" "
+                    f"in the knowledge base. Please ensure relevant documents have been "
+                    f"uploaded and the embedding model is active."
+                )
 
             stream = body.get('stream', False)
             if stream:
