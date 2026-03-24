@@ -43,20 +43,20 @@ jobs:
 
       - name: Health check FastGPT
         run: |
-          echo "Waiting 30s for containers to initialise..."
-          sleep 30
-          echo "Polling FastGPT health..."
-          for i in $(seq 1 36); do
-            CODE=$(curl -sf --max-time 5 http://172.24.4.84:3000 \
+          echo "Waiting 60s for containers and mongo-init to settle..."
+          sleep 60
+          echo "Polling FastGPT health (max 10 min)..."
+          for i in $(seq 1 60); do
+            CODE=$(curl -sf --max-time 15 http://172.24.4.84:3000 \
                    -o /dev/null -w "%{http_code}" 2>/dev/null)
             if [ "$CODE" = "200" ]; then
-              echo "✓ FastGPT is healthy (HTTP 200) after $((30 + i*10))s"
+              echo "✓ FastGPT is healthy (HTTP 200) after $((60 + i*10))s"
               exit 0
             fi
-            echo "  Attempt $i/36 — got HTTP $CODE, retrying in 10s..."
+            echo "  Attempt $i/60 — got HTTP $CODE, retrying in 10s..."
             sleep 10
           done
-          echo "✗ Health check failed after 390s"
+          echo "✗ Health check failed after 660s"
           exit 1
 
       - name: Verify API responds
