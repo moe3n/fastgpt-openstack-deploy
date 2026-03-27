@@ -2,6 +2,7 @@ import http.server
 import json
 import hashlib
 import math
+import re
 
 class MockOpenAIHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -39,21 +40,17 @@ class MockOpenAIHandler(http.server.BaseHTTPRequestHandler):
             # FastGPT injects retrieved KB chunks into the system message
             sys_msg = next((m['content'] for m in messages if m.get('role') == 'system'), '')
 
-            # Extract answer passages from the system message.
-            # FastGPT formats retrieved chunks as lines starting with "A:" or
-            # as longer prose paragraphs between the prompt boilerplate.
+            # FastGPT v4.14.9 wraps retrieved KB chunks in <Cites><Cite id="N">...</Cite></Cites>
+            # Everything outside these tags is Chinese boilerplate — ignore it.
             context_lines = []
-            for line in sys_msg.splitlines():
-                stripped = line.strip()
-                if stripped.lower().startswith('a:'):
-                    # Q&A format: grab the answer text
-                    context_lines.append(stripped[2:].strip())
-                elif stripped and not stripped.lower().startswith('q:') \
-                        and not stripped.startswith('#') \
-                        and not stripped.startswith('---') \
-                        and len(stripped) > 40:
-                    # Prose chunk: grab substantial lines
-                    context_lines.append(stripped)
+            cite_blocks = re.findall(r'<Cite[^>]*>(.*?)</Cite>', sys_msg, re.DOTALL)
+            for block in cite_blocks:
+                for line in block.splitlines():
+                    stripped = line.strip()
+                    if stripped.lower().startswith('a:'):
+                        context_lines.append(stripped[2:].strip())
+                    elif stripped and not stripped.lower().startswith('q:'):
+                        context_lines.append(stripped)
 
             if context_lines:
                 context_excerpt = ' '.join(context_lines[:3])[:600]
