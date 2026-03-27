@@ -43,7 +43,7 @@ class MockOpenAIHandler(http.server.BaseHTTPRequestHandler):
             # FastGPT v4.14.9 wraps retrieved KB chunks in <Cites><Cite id="N">...</Cite></Cites>
             # Everything outside these tags is Chinese boilerplate — ignore it.
             context_lines = []
-            cite_blocks = re.findall(r'<Cite[^>]*>(.*?)</Cite>', sys_msg, re.DOTALL)
+            cite_blocks = re.findall(r'<Cite(?!\w)[^>]*>(.*?)</Cite>', sys_msg, re.DOTALL)
             for block in cite_blocks:
                 for line in block.splitlines():
                     stripped = line.strip()
